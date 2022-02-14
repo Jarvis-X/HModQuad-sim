@@ -14,3 +14,5 @@ Simulations for various structures in CoppeliaSim with Python API
 * plus.ttt -> plus.py
 * 3x3mixture.ttt -> 3x3mixture.py
 * 4x4TModules.ttt -> 4x4TModules.py
+* genConfig: **NEW** the script to generate structure configurations with homogeneous modules that satisfy 
+a set of task requirements.
