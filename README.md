@@ -14,5 +14,7 @@ Simulations for various structures in CoppeliaSim with Python API
 * plus.ttt -> plus.py
 * 3x3mixture.ttt -> 3x3mixture.py
 * 4x4TModules.ttt -> 4x4TModules.py
+* ***NEW!*** 4x4TModulesNonRigidConnection.ttt -> 4x4TModules.py 
+  * Instead of attaching the rotors to the multi-rotor rigid body, the modules are now connected to the multi-rotor rigid body in a modular way through dummies and links, allowing to emulate the bending of the connection and the misalignment between the modules.
 * genConfig: **NEW** the script to generate structure configurations with homogeneous modules that satisfy 
 a set of task requirements.
