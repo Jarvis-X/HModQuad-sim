@@ -185,13 +185,17 @@ class Robot:
         eigs = []
         for i in range(w.size):
             if not np.allclose(w[i], 0):
-                eigs.append([w[i], v[:, i]])
+                if w[i] > 0:
+                    eigs.append([w[i], v[:, i]])
+                else:
+                    eigs.append([-w[i], -v[:, i]])
         axis = sorted(eigs, reverse=True)
-        # print(self.axis)
 
         if len(axis) == 1:
             xc = np.array([1, 0, 0])
             zaxis = axis[0][1]
+            if zaxis.dot([0, 0, 1]) < 0:
+                zaxis = -zaxis
             yaxis = np.cross(zaxis, xc)
             xaxis = np.cross(yaxis, zaxis)
             # rotation from structure frame to F-frame
@@ -239,7 +243,7 @@ class Robot:
             # self.inv_A = np.linalg.pinv(self.A).dot(self.D)
             self.inv_A = np.linalg.pinv(self.D.dot(np.concatenate([self.Rsf.T.dot(self.A[:3]), self.A[3:, :]])))
         else:
-            print("{} DoF".format(self.controllability))
+            print("{} DoF".format(self.controllability), self.Rsf)
             self.D = np.concatenate([np.zeros([4, 2]), np.eye(4)], 1)
             self.inv_A = np.linalg.pinv(self.D.dot(np.concatenate([self.Rsf.T.dot(self.A[:3]), self.A[3:, :]])))
             # self.inv_A = np.linalg.pinv(self.A).dot(self.D)
@@ -350,9 +354,9 @@ class Robot:
             self.actuate(u.tolist())
         else:
             u = u_crude
-            for i in range(len(u_crude)):
-                if u_crude[i] < 0:
-                    u[i] = 0
+            # for i in range(len(u_crude)):
+            #     if u_crude[i] < 0:
+            #         u[i] = 0
             self.actuate(u.tolist())
 
         # print("u: {}".format(u))
@@ -368,7 +372,7 @@ class PID_param:
         self.cap_R_i = 5.0
         self.e_R_i = np.array([0.0, 0.0, 0.0])
 
-        self.cap_p_i = 0.5
+        self.cap_p_i = 1.0
         self.e_p_i = np.array([0.0, 0.0, 0.0])
 
         self.mass = mass
@@ -508,11 +512,11 @@ def piecewise3D (X, Y, Z, Vx, Vy, Vz, Accx, Accy, Accz, T, num_points):
 if __name__ == "__main__":
     r1 = Robot('MultiRotor',
                ['propeller{}'.format(i+1) for i in range(4)],
-               PID_param(0.125, 0.01,
-                         (1.0, 1.0, 0.0),
-                         (5.0, 5.0, 0.0),
-                         (1.0, 1.0, 0.0),
-                         (-1.0, -0.5, 0.0)))
+               PID_param(0.125, 0.02,
+                         (1.0, 0.5, 0.2),
+                         (5.0, 2.5, 0.0),
+                         (2.0, 0.5, 0.0),
+                         (-0.6, -0.5, 0.0)))
     d1 = Robot('DesiredBox')
     g = 9.81
 
@@ -660,60 +664,61 @@ if __name__ == "__main__":
     dlog_angles1 = np.array(d1.log_angles)
     dlog_time1 = np.array(d1.log_time)
 
-    # fig = plt.figure()
-    # ax1 = fig.add_subplot(231)
-    # ax1.grid()
-    # ax1.set_xlabel('time (s)')
-    # ax1.set_ylabel('position error (m)')
-    # ax1.set_title('position error v.s. time')
-    # ax1.plot(log_time1, log_p1[:, 0], label='$e_x$')
-    # ax1.plot(log_time1, log_p1[:, 1], label='$e_y$')
-    # ax1.plot(log_time1, log_p1[:, 2], label='$e_z$')
-    # ax1.legend()
-    #
-    # ax2 = fig.add_subplot(232)
-    # ax2.grid()
-    # ax2.set_xlabel('time (s)')
-    # ax2.set_title('orientation error v.s. time')
-    # ax2.plot(log_time1, log_R1[:, 0], label='$e_{roll}$')
-    # ax2.plot(log_time1, log_R1[:, 1], label='$e_{pitch}$')
-    # ax2.plot(log_time1, log_R1[:, 2], label='$e_{yaw}$')
-    # ax2.legend()
-    #
-    # ax3 = fig.add_subplot(234)
-    # ax3.grid()
-    # ax3.set_xlabel('time (s)')
-    # ax3.set_title('input forces v.s. time')
-    # for i in range(len(r1.motors)):
-    #     ax3.plot(log_time1, log_u1[:, i], label='$u_{}$'.format(i+1))
-    # ax3.legend()
-    #
-    # ax4 = fig.add_subplot(235)
-    # ax4.grid()
-    # ax4.set_xlabel('time (s)')
-    # ax4.set_title('rpy error v.s. time')
-    # ax4.plot(log_time1, log_rpy1[:, 0], label='$e_{roll}$')
-    # ax4.plot(log_time1, log_rpy1[:, 1], label='$e_{pitch}$')
-    # ax4.plot(log_time1, log_rpy1[:, 2], label='$e_{yaw}$')
-    # ax4.legend()
-    #
-    # ax5 = fig.add_subplot(233)
-    # ax5.grid()
-    # ax5.set_xlabel('time (s)')
-    # ax5.set_title('des thrust in F v.s. time')
-    # ax5.plot(log_time1, log_th1[:, 0], label='$f_x$')
-    # ax5.plot(log_time1, log_th1[:, 1], label='$f_y$')
-    # ax5.plot(log_time1, log_th1[:, 2], label='$f_z$')
-    # ax5.legend()
-    #
-    # ax4 = fig.add_subplot(236)
-    # ax4.grid()
-    # ax4.set_xlabel('time (s)')
-    # ax4.set_title('des torque in B v.s. time')
-    # ax4.plot(log_time1, log_tor1[:, 0], label='$tau_{roll}$')
-    # ax4.plot(log_time1, log_tor1[:, 1], label='$tau_{pitch}$')
-    # ax4.plot(log_time1, log_tor1[:, 2], label='$tau_{yaw}$')
-    # ax4.legend()
+    fig = plt.figure()
+    ax1 = fig.add_subplot(231)
+    ax1.grid()
+    ax1.set_xlabel('time (s)')
+    ax1.set_ylabel('position error (m)')
+    ax1.set_title('position error v.s. time')
+    ax1.plot(log_time1, log_p1[:, 0], label='$e_x$')
+    ax1.plot(log_time1, log_p1[:, 1], label='$e_y$')
+    ax1.plot(log_time1, log_p1[:, 2], label='$e_z$')
+    ax1.legend()
+    
+    ax2 = fig.add_subplot(232)
+    ax2.grid()
+    ax2.set_xlabel('time (s)')
+    ax2.set_title('orientation error v.s. time')
+    ax2.plot(log_time1, log_R1[:, 0], label='$e_{roll}$')
+    ax2.plot(log_time1, log_R1[:, 1], label='$e_{pitch}$')
+    ax2.plot(log_time1, log_R1[:, 2], label='$e_{yaw}$')
+    ax2.legend()
+    
+    ax3 = fig.add_subplot(234)
+    ax3.grid()
+    ax3.set_xlabel('time (s)')
+    ax3.set_title('input forces v.s. time')
+    for i in range(len(r1.motors)):
+        ax3.plot(log_time1, log_u1[:, i], label='$u_{}$'.format(i+1))
+    ax3.legend()
+    
+    ax4 = fig.add_subplot(235)
+    ax4.grid()
+    ax4.set_xlabel('time (s)')
+    ax4.set_title('rpy error v.s. time')
+    ax4.plot(log_time1, log_rpy1[:, 0], label='$e_{roll}$')
+    ax4.plot(log_time1, log_rpy1[:, 1], label='$e_{pitch}$')
+    ax4.plot(log_time1, log_rpy1[:, 2], label='$e_{yaw}$')
+    ax4.legend()
+    
+    ax5 = fig.add_subplot(233)
+    ax5.grid()
+    ax5.set_xlabel('time (s)')
+    ax5.set_title('des thrust in F v.s. time')
+    ax5.plot(log_time1, log_th1[:, 0], label='$f_x$')
+    ax5.plot(log_time1, log_th1[:, 1], label='$f_y$')
+    ax5.plot(log_time1, log_th1[:, 2], label='$f_z$')
+    ax5.legend()
+    
+    ax4 = fig.add_subplot(236)
+    ax4.grid()
+    ax4.set_xlabel('time (s)')
+    ax4.set_title('des torque in B v.s. time')
+    ax4.plot(log_time1, log_tor1[:, 0], label='$tau_{roll}$')
+    ax4.plot(log_time1, log_tor1[:, 1], label='$tau_{pitch}$')
+    ax4.plot(log_time1, log_tor1[:, 2], label='$tau_{yaw}$')
+    ax4.legend()
+    plt.show()
 
     # academic-style plots
     fonts = 18
