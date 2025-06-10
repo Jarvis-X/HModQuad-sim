@@ -162,7 +162,7 @@ class Robot:
 
         for i in range(len(self.motors)):
             motor_id = self.motors[i]
-            # print(motor_id)
+            print(motor_id)
             res, quat_i = sim.simxGetObjectQuaternion(self.client_id, motor_id, self.frame,
                                                     sim.simx_opmode_blocking)
             # print(res)
@@ -217,8 +217,8 @@ class Robot:
             # rotation from structure frame to F-frame
             self.Rsf = np.eye(3)
 
-        # print(design_matrix)
-        self.controllability = np.linalg.matrix_rank(self.A)
+        print(design_matrix)
+        self.controllability = np.linalg.matrix_rank(self.A, tol=1e-5)
         if self.controllability == 6:
             self.inv_A = np.linalg.pinv(self.A)
             print("Fully actuated!")
@@ -299,9 +299,11 @@ class Robot:
 
         # PID control for position in {W}
         kp_z, kd_z, ki_z = self.PID.kpz, self.PID.kdz, self.PID.kiz
-        kp_xy, kd_xy, ki_xy = self.PID.kpxy, self.PID.kdxy, self.PID.kixy
-        ar = np.concatenate([kp_xy * ep[:2] + kd_xy * ev[:2] + ki_xy * self.PID.e_p_i[:2],
-                             np.array([kp_z * ep[2] + kd_z * ev[2] + ki_z * self.PID.e_p_i[2]])]) + a_des
+        kp_x, kd_x, ki_x = self.PID.kpx, self.PID.kdx, self.PID.kix
+        kp_y, kd_y, ki_y = self.PID.kpy, self.PID.kdy, self.PID.kiy
+        ar = np.array([kp_x * ep[0] + kd_x * ev[0] + ki_x * self.PID.e_p_i[0],
+                       kp_y * ep[1] + kd_y * ev[1] + ki_y * self.PID.e_p_i[1],
+                       kp_z * ep[2] + kd_z * ev[2] + ki_z * self.PID.e_p_i[2]]) + a_des
         ar[2] += g
         f = self.PID.mass * ar
 
@@ -332,11 +334,13 @@ class Robot:
 
         f = R.dot(self.Rsf).T.dot(f)
 
-        kp_rp, kd_rp, ki_rp = self.PID.kprp, self.PID.kdrp, self.PID.kirp
-        kp_y, kd_y, ki_y = self.PID.kpy, self.PID.kdy, self.PID.kiy
+        kp_r, kd_r, ki_r = self.PID.kpr, self.PID.kdr, self.PID.kir
+        kp_p, kd_p, ki_p = self.PID.kpp, self.PID.kdp, self.PID.kip
+        kp_yaw, kd_yaw, ki_yaw = self.PID.kpyaw, self.PID.kdyaw, self.PID.kiyaw
 
-        aR = np.concatenate([-kp_rp * eR[:2] + kd_rp * eomega[:2] - ki_rp * self.PID.e_R_i[:2],
-                             np.array([-kp_y * eR[2] + kd_y * eomega[2] - ki_y * self.PID.e_R_i[2]])]) + alpha_des
+        aR = np.array([-kp_r * eR[0] + kd_r * eomega[0] - ki_r * self.PID.e_R_i[0],
+                       -kp_p * eR[1] + kd_p * eomega[1] - ki_p * self.PID.e_R_i[1],
+                       -kp_yaw * eR[2] + kd_yaw * eomega[2] - ki_yaw * self.PID.e_R_i[2]]) + alpha_des
 
         tau = self.PID.inertia * aR
 
@@ -367,7 +371,7 @@ class Robot:
 
 
 class PID_param:
-    def __init__(self, mass, inertia, KZ, KXY, KRP, KY):
+    def __init__(self, mass, inertia, KZ, KX, KY, KR, KP, KYAW):
         # integral stuff
         self.cap_R_i = 5.0
         self.e_R_i = np.array([0.0, 0.0, 0.0])
@@ -378,9 +382,11 @@ class PID_param:
         self.mass = mass
         self.inertia = inertia
         self.kpz, self.kdz, self.kiz = KZ
-        self.kpxy, self.kdxy, self.kixy = KXY
-        self.kprp, self.kdrp, self.kirp = KRP
+        self.kpx, self.kdx, self.kix = KX
         self.kpy, self.kdy, self.kiy = KY
+        self.kpr, self.kdr, self.kir = KR
+        self.kpp, self.kdp, self.kip = KP
+        self.kpyaw, self.kdyaw, self.kiyaw = KYAW
 
 def quat2rot(quat):
     # Covert a quaternion into a full three-dimensional rotation matrix.
@@ -510,13 +516,20 @@ def piecewise3D (X, Y, Z, Vx, Vy, Vz, Accx, Accy, Accz, T, num_points):
 
 
 if __name__ == "__main__":
-    r1 = Robot('MultiRotor',
-               ['propeller{}'.format(i+1) for i in range(4)],
-               PID_param(0.125, 0.02,
-                         (1.0, 0.5, 0.2),
-                         (5.0, 2.5, 0.0),
-                         (2.0, 0.5, 0.0),
-                         (-0.6, -0.5, 0.0)))
+    r1 = Robot(
+        'MultiRotor',
+        ['/propeller{}'.format(i+1) for i in range(8)],
+        PID_param(
+            mass=0.32, inertia=0.03,
+            KZ=(5.0, 3.5, 0.0),
+            KX=(2.0, 3.0, 0.0),
+            KY=(0.2, 0.6, 0.0),
+            KR=(1.5, 0.8, 0.0),
+            KP=(0.8, 0.6, 0.0),
+            KYAW=(-0.6, -0.5, 0.0)
+        )
+    )
+    
     d1 = Robot('DesiredBox')
     g = 9.81
 
@@ -529,37 +542,37 @@ if __name__ == "__main__":
 
         # get trajectory
         # Waypoints
-        p1 = [0.0, 0.0, 0.0]
-        p2 = [2.0, 0.0, 2.0]
-        p3 = [0.0, 2.0, 1.5]
-        p4 = [-2.5, 0.0, 1.0]
-        p5 = [0.0, -2.5, 2.8]
+        p1 = [0.0, 0.0, 0.1]
+        p2 = [0.2, 0.0, 2.0]
+        p3 = [0.4, 0.0, 1.5]
+        p4 = [0.6, 0.0, 1.0]
+        p5 = [0.8, 0.0, 2.8]
 
         # Velocities
-        v1 = [0.0, 0.0, 0]
-        v2 = [0.0, 0.8, 0]
-        v3 = [-1.0, 0.0, 0.0]
-        v4 = [0.0, -1.0, 0.0]
+        v1 = [0.0, 0.0, 0.0]
+        v2 = [0.0, 0.0, 0.0]
+        v3 = [0.0, 0.0, 0.0]
+        v4 = [0.0, 0.0, 0.0]
         v5 = [0.0, 0.0, 0.0]
 
         # Accelerations
-        acc1 = [0.0, 0.0, 0]
-        acc2 = [0.0, 0.0, 0]
-        acc3 = [0.0, 0.0, 0]
-        acc4 = [0.0, 0.0, 0]
+        acc1 = [0.0, 0.0, 0.0]
+        acc2 = [0.0, 0.0, 0.0]
+        acc3 = [0.0, 0.0, 0.0]
+        acc4 = [0.0, 0.0, 0.0]
         acc5 = [0.0, 0.0, 0.0]
 
         # Waypoints of angles
-        th1 = [0.0, 0.0, 0.0]
-        th2 = [-0.1, 0.0, 0.5]
-        th3 = [0.0, -0.2, 0.2]
-        th4 = [0.1, 0.2, -0.5]
-        th5 = [0.0, 0.1, 0.0]
+        th1 = [0.0, 0.0, 0.1]
+        th2 = [0.0, 0.0, 0.3]
+        th3 = [0.0, 0.0, 0.5]
+        th4 = [0.0, 0.0, 0.7]
+        th5 = [0.0, 0.0, 0.9]
 
         # Velocities of angles
         omega1 = [0.0, 0.0, 0.0]
         omega2 = [0.0, 0.0, 0.0]
-        omega3 = [0.1, 0.0, -0.2]
+        omega3 = [0.0, 0.0, 0.0]
         omega4 = [0.0, 0.0, 0.0]
         omega5 = [0.0, 0.0, 0.0]
 
@@ -586,8 +599,8 @@ if __name__ == "__main__":
         omegar, omegap, omegay = OMEGA[:, 0], OMEGA[:, 1], OMEGA[:, 2]
         alphar, alphap, alphay = ALPHA[:, 0], ALPHA[:, 1], ALPHA[:, 2]
 
-        time_duration = 30.0
-        T = np.array([0.0, 7.0, 14.0, 21.0, 30.0])
+        time_duration = 80
+        T = np.array([0.0, 10.0, 20.0, 30.0, 40.0])
 
         x, y, z, dx, dy, dz, ddx, ddy, ddz = piecewise3D(X, Y, Z, Vx, Vy, Vz, Accx, Accy, Accz, T, 5)
         roll, pitch, yaw, droll, dpitch, dyaw, ddroll, ddpitch, ddyaw = \
