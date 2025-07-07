@@ -213,7 +213,7 @@ class Robot:
             # rotation from structure frame to F-frame
             self.Rsf = np.eye(3)
 
-        # print(design_matrix)
+        print(design_matrix)
         self.controllability = np.linalg.matrix_rank(self.A)
         if self.controllability == 6:
             self.inv_A = np.linalg.pinv(self.A)
